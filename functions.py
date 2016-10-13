@@ -33,9 +33,9 @@ def sanitize_HTML_to_XML(s):
 
 def initialise_date_list():
     date_list=[]
-    cur_year = 2002#int(datetime.datetime.now().year)
+    cur_year = 1980#int(datetime.datetime.now().year)
     year = cur_year
-    while cur_year-year < 63:
+    while cur_year-year < 1:
         date = "01%2F01%2F"+str(year)
         date_list.append(date)
         year -= 1

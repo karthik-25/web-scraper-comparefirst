@@ -7,6 +7,17 @@ import sys
 from tqdm import *
 from xmlutils.xml2csv import xml2csv
 import shutil
+import threading
+
+def progress(count, total, suffix=''):
+    bar_len = 60
+    filled_len = int(round(bar_len * count / float(total)))
+
+    percents = round(100.0 * count / float(total), 1)
+    bar = '=' * filled_len + '-' * (bar_len - filled_len)
+
+    sys.stdout.write('[%s] %s%s ...%s\r' % (bar, percents, '%', suffix))
+    sys.stdout.flush()  # As suggested by Rom Ruben
 
 t0 = time()
 
@@ -91,9 +102,11 @@ whole_life_file = open('dpip_whole_life.xml', 'w')
 term_life_file.write('<ProdList>')
 whole_life_file.write('<ProdList>')
 
-count = 1
-for request in tqdm(request_list):
-    
+req_lock = threading.Lock()
+write_lock = threading.Lock()
+done_num = 0
+
+def process_request(request, count):
     payload = request
     
     headers = {
@@ -110,9 +123,12 @@ for request in tqdm(request_list):
         'postman-token': "c3d7bf8c-127c-d75c-4bcc-e9b29cec3b36"
         }
 
+    req_lock.acquire()
     response = requests.request("POST", url, data=payload, headers=headers)
-
     s = response.text
+    # print "len for", count, "is ", len(s)
+    # print s[0:100]
+    req_lock.release()
     start = '''prodStringXML" value='''
     end = '''/>'''
     s = find_between(s, start, end)[1:-1]
@@ -155,11 +171,28 @@ for request in tqdm(request_list):
     elif DPIP_search_dict["category"][count - 1] == 'whole-life':
         file_to_write = whole_life_file
 
+	
+    write_lock.acquire()
+    # print 'writing file', count
+    # print s
     file_to_write.write(s)
     file_to_write.flush()
+    global done_num
+    done_num += 1
+    progress(done_num, len(request_list))
+    write_lock.release()
 
-
+count = 1
+threads = []
+for request in tqdm(request_list):
+    t = threading.Thread(target=process_request, args=(request, count))
+    threads.append(t)
+    t.start()
+    # process_request(request, count)
     count += 1
+
+for t in threads:
+    t.join()
 
 
 term_life_file.write('</ProdList>')
